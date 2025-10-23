@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=67.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "google-gen-image-cli"
+version = "1.0.0"
+description = "Basic scripts to generate images over the command line using Google's genai APIs"
+requires-python = ">=3.8"
+authors = []
+dependencies = [
+  "google-genai>=0.3.0",
+  "pillow>=10.0.0"
+]
+
+[tool.setuptools]
+py-modules = ["gemini_generate","imagen_generate"]
+
+[project.scripts]
+gemini-generate = "gemini_generate:main"
+imagen-generate = "imagen_generate:main"
