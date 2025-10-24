@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Generate a video with Google's Veo models from the command line."""
 
-import argparse
-import mimetypes
 import re
 import time
+import argparse
+import mimetypes
 from pathlib import Path
-from secrets import token_hex
-
-from PIL import Image
 from google import genai
 from google.genai import types
+
+from google_gen.utils import get_name
+
 
 def open_image(image_path):
     img_mime, _ = mimetypes.guess_type(image_path)
@@ -18,6 +18,7 @@ def open_image(image_path):
     img_bytes = file.read()
     file.close()
     return types.Image(image_bytes=img_bytes, mime_type=img_mime)
+
 
 def main(args) -> None:
     parser = argparse.ArgumentParser(
@@ -109,16 +110,9 @@ def main(args) -> None:
             return
 
     generated_video = operation.response.generated_videos[0]
-    
+
     output_path = Path(args.output)
-    token = token_hex(4)
-    parent = output_path.parent or Path("..")
-    stem = output_path.stem or "video"
-    suffix = output_path.suffix or ".mp4"
-
-    parent.mkdir(parents=True, exist_ok=True)
-
-    unique_path = parent / f"{stem}-{token}{suffix}"
+    unique_path = get_name(output_path)
     client.files.download(file=generated_video.video)
     generated_video.video.save(str(unique_path))
     print(f"Saved video to {unique_path.resolve()}")

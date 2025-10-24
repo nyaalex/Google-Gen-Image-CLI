@@ -6,6 +6,7 @@ USAGE = f"""Usage: {sys.argv[0]} {{imagen|gemini|veo}} [options]
 Uses Google's generative AI API to generate different media types, including images and video.
 """
 
+
 def main():
     if len(sys.argv) < 2:
         print(USAGE)

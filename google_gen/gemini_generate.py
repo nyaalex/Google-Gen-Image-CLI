@@ -3,10 +3,10 @@
 
 import argparse
 from pathlib import Path
-from secrets import token_hex
-from typing import Any, Iterable, Optional
 from google import genai
 from google.genai import types
+from google_gen.utils import get_name
+from typing import Any, Iterable, Optional
 
 
 def _first(iterable: Iterable[Any]) -> Optional[Any]:
@@ -26,7 +26,7 @@ def _extract_image_bytes(response: Any) -> bytes:
                 inline_data = getattr(part, "inline_data", None)
                 if inline_data and getattr(inline_data, "data", None):
                     return inline_data.data
-    
+
     raise RuntimeError("No image data returned from the API.")
 
 
@@ -67,7 +67,7 @@ def main(args) -> None:
         from PIL import Image
         for img in args.image:
             contents.append(Image.open(img))
-            
+
     try:
         response = client.models.generate_content(
             model=args.model,
@@ -83,13 +83,7 @@ def main(args) -> None:
     image_bytes = _extract_image_bytes(response)
 
     output_path = Path(args.output)
-    parent = output_path.parent or Path("..")
-    stem = output_path.stem or "image"
-    suffix = output_path.suffix or ".png"
-
-    parent.mkdir(parents=True, exist_ok=True)
-
-    unique_path = parent / f"{stem}-{token_hex(4)}{suffix}"
+    unique_path = get_name(output_path)
     unique_path.write_bytes(image_bytes)
 
     print(f"Saved image to {unique_path.resolve()}")

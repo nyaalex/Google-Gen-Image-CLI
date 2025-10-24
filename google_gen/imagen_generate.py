@@ -3,10 +3,10 @@
 
 import argparse
 from pathlib import Path
-from secrets import token_hex
-
 from google import genai
 from google.genai import types
+
+from google_gen.utils import get_name
 
 
 def main(args) -> None:
@@ -19,7 +19,7 @@ def main(args) -> None:
         "--output",
         default="imagen.png",
         help="Path to save the generated image(s) (default: %(default)s). "
-        "A number will be appended for multiple images (e.g., imagen-1.png, imagen-2.png)",
+             "A number will be appended for multiple images (e.g., imagen-1.png, imagen-2.png)",
     )
     parser.add_argument(
         "-n",
@@ -58,25 +58,18 @@ def main(args) -> None:
         parser.error(f"API call failed: {exc}")
 
     output_path = Path(args.output)
-    token = token_hex(4)
-    parent = output_path.parent or Path("..")
-    stem = output_path.stem or "image"
-    suffix = output_path.suffix or ".png"
-
-    parent.mkdir(parents=True, exist_ok=True)
+    names = get_name(output_path, multiple=True)
 
     generated_images = getattr(response, "generated_images", [])
     if not generated_images:
         parser.error("No images were generated.")
 
-    for i, image in enumerate(generated_images):
+    for unique_path, image in zip(names, generated_images):
         image_bytes = image.image.image_bytes
         if not image_bytes:
             print(image.rai_filtered_reason)
-            print(f"Warning: No image data for generated image {i+1}.")
+            print(f"Warning: No image data for generated image.")
             continue
-
-        unique_path = parent / f"{stem}-{token}-{i+1}{suffix}"
 
         unique_path.write_bytes(image_bytes)
         print(f"Saved image to {unique_path.resolve()}")
