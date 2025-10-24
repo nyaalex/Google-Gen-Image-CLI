@@ -2,11 +2,9 @@
 """Generate an image with Google's Gemini Imagen models from the command line."""
 
 import argparse
-import os
 from pathlib import Path
 from secrets import token_hex
 from typing import Any, Iterable, Optional
-from PIL import Image
 from google import genai
 from google.genai import types
 
@@ -19,15 +17,6 @@ def _first(iterable: Iterable[Any]) -> Optional[Any]:
 
 def _extract_image_bytes(response: Any) -> bytes:
     """Pull the first image payload from a google-genai response."""
-
-    # generate_images returns a list of `ModelGeneratedImage`; generate_content wraps the
-    # data in `response.candidates`. Inspect the first available payload.
-    generated = getattr(response, "generated_images", None)
-    if generated:
-        first_image = _first(generated)
-        if first_image and getattr(first_image, "image_bytes", None):
-            return first_image.image_bytes
-
     candidates = getattr(response, "candidates", None)
     if candidates:
         first_candidate = _first(candidates)
@@ -41,7 +30,7 @@ def _extract_image_bytes(response: Any) -> bytes:
     raise RuntimeError("No image data returned from the API.")
 
 
-def main() -> None:
+def main(args) -> None:
     parser = argparse.ArgumentParser(
         description="Generate an image using Google's Gemini image generation models."
     )
@@ -70,13 +59,8 @@ def main() -> None:
         default="gemini-2.5-flash-image",
         help="Gemini image model to use (default: %(default)s)",
     )
-    args = parser.parse_args()
-
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        parser.error("Set the GEMINI_API_KEY environment variable before running.")
-
-    client = genai.Client(api_key=api_key)
+    args = parser.parse_args(args)
+    client = genai.Client()
 
     contents = [args.prompt]
     if args.image is not None:
@@ -99,7 +83,7 @@ def main() -> None:
     image_bytes = _extract_image_bytes(response)
 
     output_path = Path(args.output)
-    parent = output_path.parent or Path(".")
+    parent = output_path.parent or Path("..")
     stem = output_path.stem or "image"
     suffix = output_path.suffix or ".png"
 
@@ -109,7 +93,3 @@ def main() -> None:
     unique_path.write_bytes(image_bytes)
 
     print(f"Saved image to {unique_path.resolve()}")
-
-
-if __name__ == "__main__":
-    main()
