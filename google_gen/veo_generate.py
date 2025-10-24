@@ -100,7 +100,13 @@ def main(args) -> None:
         operation = client.operations.get(operation)
 
     if not operation.response.generated_videos:
-        print(operation.response)
+        if operation.response.rai_media_filtered_reasons:
+            print('\n'.join(operation.response.rai_media_filtered_reasons))
+            return
+
+        else:
+            print(f"No generated video found")
+            return
 
     generated_video = operation.response.generated_videos[0]
     
