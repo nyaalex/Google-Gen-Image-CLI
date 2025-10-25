@@ -42,6 +42,13 @@ def main(args) -> None:
         help="Path to save the generated image (default: %(default)s)",
     )
     parser.add_argument(
+        "-r",
+        "--retries",
+        default=3,
+        type=int,
+        help="Number of times to retry the prompt in case of errors (default: %(default)s)",
+    )
+    parser.add_argument(
         "-i",
         "--image",
         default=None,
@@ -68,19 +75,25 @@ def main(args) -> None:
         for img in args.image:
             contents.append(Image.open(img))
 
-    try:
-        response = client.models.generate_content(
-            model=args.model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                image_config=types.ImageConfig(aspect_ratio=args.aspect_ratio),
-            ),
-        )
-    except Exception as exc:  # pragma: no cover - surfaced as CLI error text.
-        parser.error(f"API call failed: {exc}")
+    for _ in range(args.retries):
+        try:
+            response = client.models.generate_content(
+                model=args.model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(aspect_ratio=args.aspect_ratio),
+                ),
+            )
+            image_bytes = _extract_image_bytes(response)
+            break
 
-    image_bytes = _extract_image_bytes(response)
+        except Exception as exc:  # pragma: no cover - surfaced as CLI error text.
+            print("Failed to generate image:", exc)
+    else:
+        print("Failed to generate image")
+        return
+
 
     output_path = Path(args.output)
     unique_path = get_name(output_path)

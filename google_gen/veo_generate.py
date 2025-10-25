@@ -32,6 +32,13 @@ def main(args) -> None:
         help="Path to save the generated video (default: %(default)s)",
     )
     parser.add_argument(
+        "-r",
+        "--retries",
+        default=3,
+        type=int,
+        help="Number of times to retry the prompt in case of errors (default: %(default)s)",
+    )
+    parser.add_argument(
         "-s",
         "--source",
         default=None,
@@ -85,29 +92,32 @@ def main(args) -> None:
                 reference_type=types.VideoGenerationReferenceType.ASSET,
             ))
 
-    try:
-        operation = client.models.generate_videos(
-            model=args.model,
-            source=videos_source,
-            config=config,
+    for _ in range(args.retries):
+        try:
+            operation = client.models.generate_videos(
+                model=args.model,
+                source=videos_source,
+                config=config,
 
-        )
-    except Exception as exc:  # pragma: no cover - surfaced as CLI error text.
-        parser.error(f"API call failed: {exc}")
+            )
+        except Exception as exc:  # pragma: no cover - surfaced as CLI error text.
+            print(exc)
+            continue
 
-    print("Waiting for video generation to complete...")
-    while not operation.done:
-        time.sleep(10)
-        operation = client.operations.get(operation)
+        print("Waiting for video generation to complete...")
+        while not operation.done:
+            time.sleep(10)
+            operation = client.operations.get(operation)
 
-    if not operation.response.generated_videos:
-        if operation.response.rai_media_filtered_reasons:
-            print('\n'.join(operation.response.rai_media_filtered_reasons))
-            return
+        if not operation.response.generated_videos:
+            if operation.response.rai_media_filtered_reasons:
+                print('\n'.join(operation.response.rai_media_filtered_reasons))
+                continue
 
-        else:
-            print(f"No generated video found")
-            return
+        break
+    else:
+        print("Video generation failed.")
+        return
 
     generated_video = operation.response.generated_videos[0]
 
