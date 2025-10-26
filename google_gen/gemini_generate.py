@@ -49,6 +49,12 @@ def main(args) -> None:
         help="Number of times to retry the prompt in case of errors (default: %(default)s)",
     )
     parser.add_argument(
+        "-e",
+        "--enhance",
+        action="store_true",
+        help="Enhance the prompt using gemini-2.5-flash (default: %(default)s)",
+    )
+    parser.add_argument(
         "-i",
         "--image",
         default=None,
@@ -77,6 +83,24 @@ def main(args) -> None:
 
     for _ in range(args.retries):
         try:
+            if args.enhance:
+                print("Enhancing prompt...")
+                enhancer_model = "gemini-2.5-flash"
+                system_instruction = (
+                    "You are an expert image generation prompt writer. "
+                    "Please take the following prompt and enhance it to be more descriptive and "
+                    "suitable for a text-to-image model. Make it vivid and detailed, but keep it concise. "
+                    "Only return the enhanced prompt, without any preamble or explanation."
+                )
+                response = client.models.generate_content(
+                    model=enhancer_model,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction
+                    ),
+                    contents=[args.prompt] + contents[1:],
+                )
+                contents[0] = response.text.strip()
+                print(f"Enhanced prompt: {contents[0]}")
             response = client.models.generate_content(
                 model=args.model,
                 contents=contents,
