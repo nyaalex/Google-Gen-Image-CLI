@@ -2,11 +2,13 @@
 """Generate an image with Google's Gemini Imagen models from the command line."""
 
 import argparse
+import os
 from pathlib import Path
 from google import genai
 from google.genai import types
 from google_gen.utils import get_name
 from typing import Any, Iterable, Optional
+from multiprocessing import Pool
 
 
 def _first(iterable: Iterable[Any]) -> Optional[Any]:
@@ -49,6 +51,13 @@ def main(args) -> None:
         help="Number of times to retry the prompt in case of errors (default: %(default)s)",
     )
     parser.add_argument(
+        "-n",
+        "--number",
+        type=int,
+        default=1,
+        help="Number of images to generate (default: %(default)s)",
+    )
+    parser.add_argument(
         "-e",
         "--enhance",
         action="store_true",
@@ -72,14 +81,28 @@ def main(args) -> None:
         default="gemini-2.5-flash-image",
         help="Gemini image model to use (default: %(default)s)",
     )
+
+    threads = os.getenv('THREAD_COUNT', 5)
+
     args = parser.parse_args(args)
+    with Pool(threads) as p:
+        p.map(generate, (args for _ in range(args.number)))
+
+
+
+def generate(args):
     client = genai.Client()
 
-    contents = [args.prompt]
+    prompt = args.prompt
+    images= []
+
+    output_path = Path(args.output)
+    unique_path = get_name(output_path)
+
     if args.image is not None:
         from PIL import Image
         for img in args.image:
-            contents.append(Image.open(img))
+            images.append(Image.open(img))
 
     for _ in range(args.retries):
         try:
@@ -97,13 +120,14 @@ def main(args) -> None:
                     config=types.GenerateContentConfig(
                         system_instruction=system_instruction
                     ),
-                    contents=[args.prompt] + contents[1:],
+                    contents=[args.prompt] + images,
                 )
-                contents[0] = response.text.strip()
-                print(f"Enhanced prompt: {contents[0]}")
+                prompt = response.text.strip()
+                print(f"Prompt for {unique_path}: {prompt}")
+
             response = client.models.generate_content(
                 model=args.model,
-                contents=contents,
+                contents=[prompt] + images,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE"],
                     image_config=types.ImageConfig(aspect_ratio=args.aspect_ratio),
@@ -119,8 +143,6 @@ def main(args) -> None:
         return
 
 
-    output_path = Path(args.output)
-    unique_path = get_name(output_path)
     unique_path.write_bytes(image_bytes)
 
     print(f"Saved image to {unique_path.resolve()}")
