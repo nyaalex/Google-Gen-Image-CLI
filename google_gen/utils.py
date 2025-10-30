@@ -9,7 +9,7 @@ def get_name(output_path: Path, multiple=False):
     stem = output_path.stem or "file"
     suffix = output_path.suffix or ".bin"
     parent.mkdir(parents=True, exist_ok=True)
-    uid = datetime.today().strftime("%Y%m%d%H%M%S") + token_hex(2)  # Just so they're in order and stuff
+    uid = datetime.today().strftime("%Y%m%d%H%M%S") + '-' + token_hex(2)
 
     if not multiple:
         return parent / f"{stem}-{uid}{suffix}"
