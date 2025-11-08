@@ -2,11 +2,13 @@
 """Generate an image with Google's Gemini Imagen models from the command line."""
 
 import argparse
+import json
 import os
+import sys
 from pathlib import Path
 from google import genai
 from google.genai import types
-from google_gen.utils import get_name
+from google_gen.utils import get_name, enhance_prompt
 from typing import Any, Iterable, Optional
 from multiprocessing import Pool
 
@@ -85,19 +87,24 @@ def main(args) -> None:
     threads = os.getenv('THREAD_COUNT', 5)
 
     args = parser.parse_args(args)
-    with Pool(threads) as p:
-        p.map(generate, (args for _ in range(args.number)))
+    path = Path(args.output).resolve().parent
+    hist_file = path / ".prompt_history"
 
+    with Pool(threads) as p:
+        with open(hist_file, 'a') as hist:
+            for filename, prompt in p.map(generate, (args for _ in range(args.number))):
+                if filename is not None:
+                    hist.write(json.dumps({
+                        'filename': str(filename),
+                        'prompt': prompt,
+                        'args': sys.argv}) + '\n')
 
 
 def generate(args):
     client = genai.Client()
 
     prompt = args.prompt
-    images= []
-
-    output_path = Path(args.output)
-    unique_path = get_name(output_path)
+    images = []
 
     if args.image is not None:
         from PIL import Image
@@ -105,24 +112,12 @@ def generate(args):
             images.append(Image.open(img))
 
     for _ in range(args.retries):
+        output_path = Path(args.output)
+        unique_path = get_name(output_path)
         try:
             if args.enhance:
                 print("Enhancing prompt...")
-                enhancer_model = "gemini-2.5-flash"
-                system_instruction = (
-                    "You are an expert image generation prompt writer. "
-                    "Please take the following prompt and enhance it to be more descriptive and "
-                    "suitable for a text-to-image model. Make it vivid and detailed, but keep it concise. "
-                    "Only return the enhanced prompt, without any preamble or explanation."
-                )
-                response = client.models.generate_content(
-                    model=enhancer_model,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction
-                    ),
-                    contents=[args.prompt] + images,
-                )
-                prompt = response.text.strip()
+                prompt = enhance_prompt(prompt, 'image', images)
                 print(f"Prompt for {unique_path}: {prompt}")
 
             response = client.models.generate_content(
@@ -139,10 +134,8 @@ def generate(args):
         except Exception as exc:  # pragma: no cover - surfaced as CLI error text.
             print("Failed to generate image:", exc)
     else:
-        print("Failed to generate image")
-        return
-
+        return None, None
 
     unique_path.write_bytes(image_bytes)
-
     print(f"Saved image to {unique_path.resolve()}")
+    return unique_path, prompt
