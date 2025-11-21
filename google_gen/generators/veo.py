@@ -9,8 +9,8 @@ from google_gen.generators import BaseGenerator
 
 
 class Veo(BaseGenerator):
-    def __init__(self, client, args):
-        super().__init__(client, args)
+    def __init__(self, args):
+        super().__init__(args)
 
         if args.asset is not None:
             for img in args.image:

@@ -2,9 +2,8 @@ import json
 import os
 import sys
 import argparse
+from multiprocessing import Pool
 from pathlib import Path
-
-from google import genai
 from google_gen.generators import *
 
 
@@ -42,7 +41,6 @@ def main():
     if os.getenv('GEMINI_API_KEY', None) is None:
         print("GEMINI_API_KEY environment variable not set.")
         return
-    client = genai.Client()
 
     parser = argparse.ArgumentParser(
         description="Generate content using the Google generative AI suite of models."
@@ -59,7 +57,7 @@ def main():
     selected = None
     for submodule, name, _ in SUBMODULES:
         if args.submodule == name:
-            selected = submodule(client, args)
+            selected = submodule(args)
 
     if selected is None:
         raise Exception("Unknown submodule %s" % args.submodule)
@@ -68,15 +66,15 @@ def main():
     path = Path(args.output).resolve().parent
     hist_file = path / ".prompt_history"
 
-    with open(hist_file, 'a') as hist:
-        for i in range(args.number):
-            results = selected.run(0)
-            for filename, prompt in results:
-                if filename is not None:
-                    hist.write(json.dumps({
-                        'filename': str(filename),
-                        'prompt': prompt,
-                        'args': sys.argv}) + '\n')
+    with Pool(threads) as p:
+        with open(hist_file, 'a') as hist:
+            for results in p.imap_unordered(selected.run, range(args.number)):
+                for filename, prompt in results:
+                    if filename is not None:
+                        hist.write(json.dumps({
+                            'filename': str(filename),
+                            'prompt': prompt,
+                            'args': sys.argv}) + '\n')
 
 
 if __name__ == "__main__":

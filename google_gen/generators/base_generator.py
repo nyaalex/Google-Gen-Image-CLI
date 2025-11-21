@@ -3,12 +3,13 @@ from itertools import count
 from datetime import datetime
 from secrets import token_hex
 
+from google import genai
 from google.genai import types
 
 
 class BaseGenerator:
-    def __init__(self, client, args):
-        self.client = client
+    def __init__(self, args):
+        self.client = None
         self.args = args
         self.images = []
 
@@ -60,6 +61,7 @@ class BaseGenerator:
         return new_prompt
 
     def run(self, _):
+        self.client = genai.Client()
         prompt = self.args.prompt
         for _ in range(self.args.retries):
             try:
