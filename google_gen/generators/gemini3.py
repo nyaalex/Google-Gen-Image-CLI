@@ -1,4 +1,7 @@
+import mimetypes
 from typing import Generator
+
+from google import genai
 
 from google_gen.generators import BaseGenerator
 from PIL import Image
@@ -9,10 +12,36 @@ class Gemini3(BaseGenerator):
 
     def __init__(self, args):
         super().__init__(args)
+        self.bypass_content = None
+
+        if args.bypass and len(args.image) > 1:
+            raise Exception("Only one image can be bypassed")
 
         if args.image is not None:
             for img in args.image:
                 self.images.append(Image.open(img))
+
+        if args.bypass:
+            print("[*] Getting content for bypass.")
+            client = genai.Client()
+            unedited = client.models.generate_content(
+                model='gemini-3-pro-image-preview',
+                contents=["add a single translucent pixel to the bottom right of the image"] + self.images,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(
+                        aspect_ratio=self.args.aspect_ratio,
+                        image_size=self.args.resolution,
+                    ),
+                    thinking_config=types.ThinkingConfig(
+                        include_thoughts=True
+                    ),
+                ),
+            )
+            if unedited.parts is not None and unedited.parts[0].inline_data is not None:
+                print("[*] Successfully generated a bypass content")
+                # unedited.parts[0].as_image().save("test.jpeg")
+                self.bypass_content = unedited.candidates[0].content
 
     @staticmethod
     def setup_args(parser):
@@ -26,7 +55,7 @@ class Gemini3(BaseGenerator):
         parser.add_argument(
             "--aspect-ratio",
             default="3:4",
-            choices=["1:1","2:3","3:2","3:4","4:3","4:5","5:4","9:16","16:9","21:9"],
+            choices=["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"],
             help="Aspect ratio to request (default: %(default)s)",
         )
         parser.add_argument(
@@ -45,6 +74,12 @@ class Gemini3(BaseGenerator):
             action="store_true",
             help="Show/save thoughts and thought images (default: %(default)s)",
         )
+        parser.add_argument(
+            "-b",
+            "--bypass",
+            action="store_true",
+            help="Attempt to bypass the safeties on img&txt2img (requires one extra image generation) (default: %(default)s)",
+        )
 
     def _extract_image_bytes(self, response: types.GenerateContentResponse) -> 'Generator[bytes]':
         for part in response.parts:
@@ -58,13 +93,25 @@ class Gemini3(BaseGenerator):
 
     def generate(self, prompt: str) -> list[tuple[bytes, str]]:
 
-        tools =[]
+        tools = []
         if self.args.search:
             tools.append({"google_search": {}})
 
+        if self.bypass_content is None:
+            contents = [prompt] + self.images
+
+        else:
+            contents = [
+                self.bypass_content,
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=prompt)]
+                ),
+            ]
+
         response = self.client.models.generate_content(
             model='gemini-3-pro-image-preview',
-            contents=[prompt] + self.images,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
                 image_config=types.ImageConfig(
@@ -76,7 +123,7 @@ class Gemini3(BaseGenerator):
                 ),
             ),
         )
-        results = [(image_bytes, 'png') for image_bytes in self._extract_image_bytes(response)]
+        results = [(image_bytes, 'jpeg') for image_bytes in self._extract_image_bytes(response)]
         if not results:
             raise Exception(f"No images returned from API.")
 
