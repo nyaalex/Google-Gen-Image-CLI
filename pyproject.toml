@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "google-gen"
-version = "3.2.0"
+version = "3.2.1"
 description = "Basic scripts to generate images over the command line using Google's genai APIs"
 requires-python = ">=3.8"
 authors = []
 dependencies = [
-  "google-genai>=0.3.0",
+  "google-genai>=1.52.0",
   "pillow>=10.0.0"
 ]
 

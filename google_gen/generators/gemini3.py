@@ -14,9 +14,6 @@ class Gemini3(BaseGenerator):
         super().__init__(args)
         self.bypass_content = None
 
-        if args.bypass and len(args.image) > 1:
-            raise Exception("Only one image can be bypassed")
-
         if args.image is not None:
             for img in args.image:
                 self.images.append(Image.open(img))
@@ -24,24 +21,28 @@ class Gemini3(BaseGenerator):
         if args.bypass:
             print("[*] Getting content for bypass.")
             client = genai.Client()
-            unedited = client.models.generate_content(
-                model='gemini-3-pro-image-preview',
-                contents=["add a single translucent pixel to the bottom right of the image"] + self.images,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=self.args.aspect_ratio,
-                        image_size=self.args.resolution,
+            self.bypass_content = []
+            for i, image in enumerate(self.images):
+                unedited = client.models.generate_content(
+                    model='gemini-3-pro-image-preview',
+                    contents=["add a single translucent pixel to the bottom right of the image"] + [image],
+                    config=types.GenerateContentConfig(
+                        response_modalities=["IMAGE"],
+                        image_config=types.ImageConfig(
+                            aspect_ratio=self.args.aspect_ratio,
+                            image_size=self.args.resolution,
+                        ),
+                        thinking_config=types.ThinkingConfig(
+                            include_thoughts=True
+                        ),
                     ),
-                    thinking_config=types.ThinkingConfig(
-                        include_thoughts=True
-                    ),
-                ),
-            )
-            if unedited.parts is not None and unedited.parts[0].inline_data is not None:
-                print("[*] Successfully generated a bypass content")
-                # unedited.parts[0].as_image().save("test.jpeg")
-                self.bypass_content = unedited.candidates[0].content
+                )
+                if unedited.parts is not None and unedited.parts[0].inline_data is not None:
+                    print(f"[*] Successfully generated a bypass content for image ({i+1}/{len(self.images)})")
+                    # unedited.parts[0].as_image().save("test.jpeg")
+                    self.bypass_content.append(unedited.candidates[0].content)
+                else:
+                    raise Exception(f"Failed to generate bypass content for image ({i+1}/{len(self.images)})")
 
     @staticmethod
     def setup_args(parser):
@@ -101,8 +102,7 @@ class Gemini3(BaseGenerator):
             contents = [prompt] + self.images
 
         else:
-            contents = [
-                self.bypass_content,
+            contents = self.bypass_content + [
                 types.Content(
                     role="user",
                     parts=[types.Part.from_text(text=prompt)]
