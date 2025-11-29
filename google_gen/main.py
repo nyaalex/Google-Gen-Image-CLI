@@ -34,6 +34,16 @@ def add_shared_args(parser):
         action="store_true",
         help="Enhance the prompt using gemini-2.5-flash (default: %(default)s)",
     )
+    parser.add_argument(
+        "--use-system-prompt",
+        action="store_true",
+        help="Use the system prompt for enhancing, gets around some safety settings (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--ignore-images",
+        action="store_true",
+        help="Stops images from being sent to the prompt enhancer (default: %(default)s)",
+    )
     parser.add_argument("prompt", help="The text prompt for the content.")
 
 
