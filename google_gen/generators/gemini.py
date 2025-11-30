@@ -21,15 +21,13 @@ class Gemini(BaseGenerator):
         parser.add_argument(
             "-i",
             "--image",
-            default=None,
             action="append",
             help="Paths to any images to attach",
         )
         parser.add_argument(
             "--aspect-ratio",
-            default="3:4",
             choices=["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9", "21:9"],
-            help="Aspect ratio to request (default: %(default)s)",
+            help="Aspect ratio to request",
         )
         parser.add_argument(
             "-b",
