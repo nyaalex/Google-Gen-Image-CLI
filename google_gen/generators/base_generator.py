@@ -2,6 +2,8 @@ from pathlib import Path
 from itertools import count
 from datetime import datetime
 from secrets import token_hex
+import json
+import os
 
 from google import genai
 from google.genai import types
@@ -12,6 +14,36 @@ class BaseGenerator:
         self.client = None
         self.args = args
         self.images = []
+        self.headers = self._parse_headers()
+    
+    def _parse_headers(self):
+        """Parse headers from command line arguments or environment variable."""
+        headers = {}
+        
+        # First, try to get headers from environment variable (JSON format)
+        env_headers = os.getenv('GEMINI_HEADERS', None)
+        if env_headers:
+            try:
+                headers.update(json.loads(env_headers))
+            except json.JSONDecodeError:
+                print(f"Warning: GEMINI_HEADERS environment variable is not valid JSON. Ignoring.")
+        
+        # Then, override/add headers from command line arguments
+        if self.args.header:
+            for header_str in self.args.header:
+                if ':' not in header_str:
+                    print(f"Warning: Invalid header format '{header_str}'. Expected KEY:VALUE. Ignoring.")
+                    continue
+                key, value = header_str.split(':', 1)
+                headers[key.strip()] = value.strip()
+        
+        return headers
+    
+    def _get_http_options(self):
+        """Create HttpOptions with custom headers if any are set."""
+        if not self.headers:
+            return None
+        return types.HttpOptions(headers=self.headers)
 
     @staticmethod
     def setup_args(parser):
@@ -48,30 +80,41 @@ class BaseGenerator:
         if not self.args.ignore_images:
             contents += self.images
 
+        config_dict = {
+            "system_instruction": system_instruction,
+            "safety_settings": [
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                                    threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                                    threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                                    threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                                    threshold=types.HarmBlockThreshold.BLOCK_NONE),
+                types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+                                    threshold=types.HarmBlockThreshold.BLOCK_NONE)
+            ]
+        }
+        
+        http_options = self._get_http_options()
+        if http_options:
+            config_dict["http_options"] = http_options
+        
         response = self.client.models.generate_content(
             model=enhancer_model,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                safety_settings=[
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
-                                        threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-                                        threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-                                        threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-                                        threshold=types.HarmBlockThreshold.BLOCK_NONE),
-                    types.SafetySetting(category=types.HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
-                                        threshold=types.HarmBlockThreshold.BLOCK_NONE)
-                ]
-            ),
+            config=types.GenerateContentConfig(**config_dict),
             contents=contents,
         )
         new_prompt = response.text.strip()
         return new_prompt
 
     def run(self, _):
-        self.client = genai.Client()
+        # Get API key from args (which may override environment) or environment
+        api_key = self.args.api_key or os.getenv('GEMINI_API_KEY', None)
+        if api_key:
+            self.client = genai.Client(api_key=api_key)
+        else:
+            self.client = genai.Client()
         prompt = self.args.prompt
         for _ in range(self.args.retries):
             try:

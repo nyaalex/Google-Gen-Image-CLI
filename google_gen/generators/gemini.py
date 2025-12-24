@@ -66,13 +66,19 @@ class Gemini(BaseGenerator):
                 ),
             ]
 
+        config_dict = {
+            "response_modalities": ["IMAGE"],
+            "image_config": types.ImageConfig(aspect_ratio=self.args.aspect_ratio),
+        }
+        
+        http_options = self._get_http_options()
+        if http_options:
+            config_dict["http_options"] = http_options
+        
         response = self.client.models.generate_content(
             model='gemini-2.5-flash-image',
-            contents= contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                image_config=types.ImageConfig(aspect_ratio=self.args.aspect_ratio),
-            ),
+            contents=contents,
+            config=types.GenerateContentConfig(**config_dict),
         )
         image_bytes = self._extract_image_bytes(response)
         return [(image_bytes, 'png')]

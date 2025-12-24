@@ -1,4 +1,5 @@
 import mimetypes
+import os
 from typing import Generator
 
 from google import genai
@@ -20,22 +21,33 @@ class Gemini3(BaseGenerator):
 
         if args.bypass:
             print("[*] Getting content for bypass.")
-            client = genai.Client()
+            # Get API key from args (which may override environment) or environment
+            api_key = self.args.api_key or os.getenv('GEMINI_API_KEY', None)
+            if api_key:
+                client = genai.Client(api_key=api_key)
+            else:
+                client = genai.Client()
             self.bypass_content = []
             for i, image in enumerate(self.images):
+                config_dict = {
+                    "response_modalities": ["IMAGE"],
+                    "image_config": types.ImageConfig(
+                        aspect_ratio=self.args.aspect_ratio,
+                        image_size=self.args.resolution,
+                    ),
+                    "thinking_config": types.ThinkingConfig(
+                        include_thoughts=True
+                    ),
+                }
+                
+                http_options = self._get_http_options()
+                if http_options:
+                    config_dict["http_options"] = http_options
+                
                 unedited = client.models.generate_content(
                     model='gemini-3-pro-image-preview',
                     contents=["add a single translucent pixel to the bottom right of the image"] + [image],
-                    config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"],
-                        image_config=types.ImageConfig(
-                            aspect_ratio=self.args.aspect_ratio,
-                            image_size=self.args.resolution,
-                        ),
-                        thinking_config=types.ThinkingConfig(
-                            include_thoughts=True
-                        ),
-                    ),
+                    config=types.GenerateContentConfig(**config_dict),
                 )
                 if unedited.parts is not None and unedited.parts[0].inline_data is not None:
                     print(f"[*] Successfully generated a bypass content for image ({i+1}/{len(self.images)})")
@@ -106,19 +118,25 @@ class Gemini3(BaseGenerator):
                 ),
             ]
 
+        config_dict = {
+            "response_modalities": ["IMAGE"],
+            "image_config": types.ImageConfig(
+                aspect_ratio=self.args.aspect_ratio,
+                image_size=self.args.resolution,
+            ),
+            "thinking_config": types.ThinkingConfig(
+                include_thoughts=True
+            ),
+        }
+        
+        http_options = self._get_http_options()
+        if http_options:
+            config_dict["http_options"] = http_options
+        
         response = self.client.models.generate_content(
             model='gemini-3-pro-image-preview',
             contents=contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                image_config=types.ImageConfig(
-                    aspect_ratio=self.args.aspect_ratio,
-                    image_size=self.args.resolution,
-                ),
-                thinking_config=types.ThinkingConfig(
-                    include_thoughts=True
-                ),
-            ),
+            config=types.GenerateContentConfig(**config_dict),
         )
         results = [(image_bytes, 'jpeg') for image_bytes in self._extract_image_bytes(response)]
         if not results:
