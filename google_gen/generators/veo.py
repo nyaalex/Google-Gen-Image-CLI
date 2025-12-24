@@ -13,7 +13,7 @@ class Veo(BaseGenerator):
         super().__init__(args)
 
         if args.asset is not None:
-            for img in args.image:
+            for img in args.asset:
                 self.images.append(Image.open(img))
 
         if args.last is not None:
@@ -60,7 +60,13 @@ class Veo(BaseGenerator):
 
     def generate(self, prompt: str) -> list[tuple[bytes, str]]:
         videos_source = types.GenerateVideosSource(prompt=prompt)
-        config = types.GenerateVideosConfig(aspect_ratio=self.args.aspect_ratio)
+        config_dict = {"aspect_ratio": self.args.aspect_ratio}
+        
+        http_options = self._get_http_options()
+        if http_options:
+            config_dict["http_options"] = http_options
+        
+        config = types.GenerateVideosConfig(**config_dict)
 
         if self.args.source:
             videos_source.image = self._open_image(self.args.source)

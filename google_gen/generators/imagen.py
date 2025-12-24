@@ -22,11 +22,17 @@ class Imagen(BaseGenerator):
         )
 
     def generate(self, prompt):
-        config = types.GenerateImagesConfig(
-            number_of_images=self.args.batch,
-            aspect_ratio=self.args.aspect_ratio,
-            include_rai_reason=True,
-        )
+        config_dict = {
+            "number_of_images": self.args.batch,
+            "aspect_ratio": self.args.aspect_ratio,
+            "include_rai_reason": True,
+        }
+        
+        http_options = self._get_http_options()
+        if http_options:
+            config_dict["http_options"] = http_options
+        
+        config = types.GenerateImagesConfig(**config_dict)
 
         try:
             response = self.client.models.generate_images(

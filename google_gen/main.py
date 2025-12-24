@@ -44,14 +44,21 @@ def add_shared_args(parser):
         action="store_true",
         help="Stops images from being sent to the prompt enhancer (default: %(default)s)",
     )
+    parser.add_argument(
+        "--api-key",
+        default=None,
+        help="API key for Google GenAI (overrides GEMINI_API_KEY environment variable)",
+    )
+    parser.add_argument(
+        "--header",
+        action="append",
+        default=None,
+        help="Custom HTTP header in format KEY:VALUE (can be specified multiple times). Headers can also be set via GEMINI_HEADERS environment variable as JSON object.",
+    )
     parser.add_argument("prompt", help="The text prompt for the content.")
 
 
 def main():
-    if os.getenv('GEMINI_API_KEY', None) is None:
-        print("GEMINI_API_KEY environment variable not set.")
-        return
-
     parser = argparse.ArgumentParser(
         description="Generate content using the Google generative AI suite of models."
     )
@@ -63,6 +70,12 @@ def main():
         submodule.setup_args(subparser)
 
     args = parser.parse_args()
+
+    # Check for API key - use argument if provided, otherwise check environment
+    api_key = args.api_key or os.getenv('GEMINI_API_KEY', None)
+    if api_key is None:
+        print("GEMINI_API_KEY environment variable not set and --api-key not provided.")
+        return
 
     selected = None
     for submodule, name, _ in SUBMODULES:
