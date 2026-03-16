@@ -111,10 +111,17 @@ class BaseGenerator:
     def run(self, _):
         # Get API key from args (which may override environment) or environment
         api_key = self.args.api_key or os.getenv('GEMINI_API_KEY', None)
+        
+        client_kwargs = {}
         if api_key:
-            self.client = genai.Client(api_key=api_key)
-        else:
-            self.client = genai.Client()
+            client_kwargs['api_key'] = api_key
+            
+        http_options = self._get_http_options()
+        if http_options:
+            client_kwargs['http_options'] = http_options
+            
+        self.client = genai.Client(**client_kwargs)
+        
         prompt = self.args.prompt
         for _ in range(self.args.retries):
             try:

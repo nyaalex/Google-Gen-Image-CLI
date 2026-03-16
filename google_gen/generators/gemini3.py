@@ -23,10 +23,13 @@ class Gemini3(BaseGenerator):
             print("[*] Getting content for bypass.")
             # Get API key from args (which may override environment) or environment
             api_key = self.args.api_key or os.getenv('GEMINI_API_KEY', None)
+            client_kwargs = {}
             if api_key:
-                client = genai.Client(api_key=api_key)
-            else:
-                client = genai.Client()
+                client_kwargs['api_key'] = api_key
+            http_options = self._get_http_options()
+            if http_options:
+                client_kwargs['http_options'] = http_options
+            client = genai.Client(**client_kwargs)
             self.bypass_content = []
             for i, image in enumerate(self.images):
                 config_dict = {
