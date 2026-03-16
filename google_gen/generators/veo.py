@@ -106,10 +106,17 @@ class Veo(BaseGenerator):
                 print('\n'.join(operation.response.rai_media_filtered_reasons))
             return []
 
-        generated_video = operation.response.generated_videos[0]
+        generated_videos = operation.response.generated_videos
+        
+        print(f"[*] Veo API returned {len(generated_videos)} video(s).")
+        
+        output = []
+        for i, generated_video in enumerate(generated_videos):
+            print(f"[*] Downloading video {i + 1}/{len(generated_videos)}...")
+            video_bytes = self.client.files.download(file=generated_video.video)
 
-        video_bytes = self.client.files.download(file=generated_video.video)
-
-        file_name = re.findall('files/[^:]*', generated_video.video.uri)
-        self.client.files.delete(name=file_name[0])
-        return [(video_bytes, 'mp4')]
+            file_name = re.findall('files/[^:]*', generated_video.video.uri)
+            self.client.files.delete(name=file_name[0])
+            output.append((video_bytes, 'mp4'))
+            
+        return output
